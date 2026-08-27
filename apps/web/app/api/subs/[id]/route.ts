@@ -1,7 +1,9 @@
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDb, subscriptions, usageEvents } from "@sub-tracker/db";
+import { isBillingPeriod } from "@/lib/billing";
 import { getUserId } from "@/lib/auth-server";
+import type { BillingPeriod } from "@/lib/types";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -12,17 +14,23 @@ export async function PATCH(request: Request, { params }: Context) {
   const { id } = await params;
   const body = await request.json().catch(() => null);
 
-  const patch: { name?: string; monthlyCost?: number } = {};
+  const patch: { name?: string; cost?: number; billingPeriod?: BillingPeriod } = {};
   if (typeof body?.name === "string" && body.name.trim()) patch.name = body.name.trim();
-  if (body?.monthlyCost !== undefined) {
-    const monthlyCost = Number(body.monthlyCost);
-    if (!Number.isFinite(monthlyCost) || monthlyCost < 0) {
+  if (body?.cost !== undefined) {
+    const cost = Number(body.cost);
+    if (!Number.isFinite(cost) || cost < 0) {
+      return NextResponse.json({ error: "cost must be a non-negative number" }, { status: 400 });
+    }
+    patch.cost = cost;
+  }
+  if (body?.billingPeriod !== undefined) {
+    if (!isBillingPeriod(body.billingPeriod)) {
       return NextResponse.json(
-        { error: "monthlyCost must be a non-negative number" },
+        { error: "billingPeriod must be 'monthly' or 'yearly'" },
         { status: 400 },
       );
     }
-    patch.monthlyCost = monthlyCost;
+    patch.billingPeriod = body.billingPeriod;
   }
 
   if (Object.keys(patch).length === 0) {

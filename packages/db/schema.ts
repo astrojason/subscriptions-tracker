@@ -6,7 +6,10 @@ export const subscriptions = sqliteTable(
     id: text("id").primaryKey(),
     userId: text("user_id").notNull(),
     name: text("name").notNull(),
-    monthlyCost: real("monthly_cost").notNull(),
+    cost: real("cost").notNull(),
+    billingPeriod: text("billing_period", { enum: ["monthly", "yearly"] })
+      .notNull()
+      .default("monthly"),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   },
   (table) => ({

@@ -10,7 +10,7 @@ See `PLAN.md` for the original design doc.
 - Turborepo + npm workspaces
 - Next.js (App Router) in `apps/web`
 - Turso (SQLite) + Drizzle ORM in `packages/db`
-- Firebase Auth (email/password + Google)
+- Firebase Auth (Google sign-in)
 - Deployed on Vercel
 
 ## Setup
@@ -29,8 +29,8 @@ See `PLAN.md` for the original design doc.
    turso db tokens create sub-tracker
    ```
 
-3. Create a Firebase project, enable the Email/Password and Google sign-in providers, and
-   generate a service account key for `firebase-admin`.
+3. Create a Firebase project, enable the Google sign-in provider, and generate a service
+   account key for `firebase-admin`.
 
 4. Copy `apps/web/.env.example` to `apps/web/.env.local` and fill in the Turso and Firebase
    values.

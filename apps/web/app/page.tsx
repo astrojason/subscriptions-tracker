@@ -7,7 +7,7 @@ import { ErrorBlock } from "@/components/ErrorBlock";
 import { apiFetch } from "@/lib/apiFetch";
 import { useAuth } from "@/lib/auth-context";
 import { auth } from "@/lib/firebase";
-import type { SubscriptionWithUsage } from "@/lib/types";
+import type { BillingPeriod, SubscriptionWithUsage } from "@/lib/types";
 
 const BARELY_USED_THRESHOLD = 2;
 
@@ -17,7 +17,7 @@ function formatCurrency(value: number) {
 
 function tagFor(sub: SubscriptionWithUsage) {
   if (sub.hasValueData) {
-    const worthIt = sub.totalValue >= sub.monthlyCost;
+    const worthIt = sub.totalValue >= sub.costPerMonth;
     return { label: worthIt ? "Worth it" : "Falling short", className: worthIt ? "tag-accent" : "tag-outline" };
   }
   if (sub.usesThisMonth < BARELY_USED_THRESHOLD) {
@@ -33,11 +33,15 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [name, setName] = useState("");
-  const [monthlyCost, setMonthlyCost] = useState("");
+  const [cost, setCost] = useState("");
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("monthly");
   const [adding, setAdding] = useState(false);
 
   const [valueInputs, setValueInputs] = useState<Record<string, string>>({});
   const [loggingId, setLoggingId] = useState<string | null>(null);
+
+  const [confirmDelete, setConfirmDelete] = useState<SubscriptionWithUsage | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const loadSubs = useCallback(async () => {
     try {
@@ -58,20 +62,30 @@ export default function DashboardPage() {
     if (!authLoading && user) loadSubs();
   }, [authLoading, user, loadSubs]);
 
+  useEffect(() => {
+    if (!confirmDelete) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setConfirmDelete(null);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [confirmDelete]);
+
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
-    const cost = Number(monthlyCost);
-    if (!name.trim() || !Number.isFinite(cost) || cost < 0) return;
+    const parsedCost = Number(cost);
+    if (!name.trim() || !Number.isFinite(parsedCost) || parsedCost < 0) return;
 
     setAdding(true);
     setError(null);
     try {
       await apiFetch("/api/subs", {
         method: "POST",
-        body: JSON.stringify({ name: name.trim(), monthlyCost: cost }),
+        body: JSON.stringify({ name: name.trim(), cost: parsedCost, billingPeriod }),
       });
       setName("");
-      setMonthlyCost("");
+      setCost("");
+      setBillingPeriod("monthly");
       await loadSubs();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -80,13 +94,19 @@ export default function DashboardPage() {
     }
   }
 
-  async function handleDelete(id: string) {
+  async function handleConfirmDelete() {
+    if (!confirmDelete) return;
+    const id = confirmDelete.id;
     setError(null);
+    setDeleting(true);
     try {
       await apiFetch(`/api/subs/${id}`, { method: "DELETE" });
       setSubs((prev) => prev.filter((sub) => sub.id !== id));
+      setConfirmDelete(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -154,9 +174,10 @@ export default function DashboardPage() {
               {subs.map((sub) => {
                 const tag = tagFor(sub);
                 const progressPct = sub.hasValueData
-                  ? Math.min(100, (sub.totalValue / Math.max(sub.monthlyCost, 0.01)) * 100)
+                  ? Math.min(100, (sub.totalValue / Math.max(sub.costPerMonth, 0.01)) * 100)
                   : 0;
                 const isLogging = loggingId === sub.id;
+                const isYearly = sub.billingPeriod === "yearly";
 
                 return (
                   <div
@@ -169,19 +190,21 @@ export default function DashboardPage() {
                     <i className="corner bl" />
                     <i className="corner br" />
 
-                    <div className="flex items-start justify-between" style={{ gap: "var(--space-2)" }}>
+                    <div className="flex items-center justify-between" style={{ gap: "var(--space-2)" }}>
                       <div>
                         <div className="card-title" style={{ fontSize: "22px" }}>
                           {sub.name}
                         </div>
-                        <div className="card-meta">{formatCurrency(sub.monthlyCost)} / month</div>
+                        <div className="card-meta">
+                          {formatCurrency(sub.cost)} / {isYearly ? "year" : "month"}
+                          {isYearly && ` · ${formatCurrency(sub.costPerMonth)}/mo`}
+                        </div>
                       </div>
                       <button
                         type="button"
-                        onClick={() => handleDelete(sub.id)}
-                        className="btn-icon"
+                        onClick={() => setConfirmDelete(sub)}
+                        className="btn btn-icon btn-danger"
                         aria-label={`Delete ${sub.name}`}
-                        style={{ border: "1px solid var(--color-divider)" }}
                       >
                         <Trash2 size={15} strokeWidth={1.5} />
                       </button>
@@ -206,7 +229,7 @@ export default function DashboardPage() {
                           />
                         </div>
                         <div className="text-muted text-sm" style={{ marginTop: "var(--space-1)" }}>
-                          {formatCurrency(sub.totalValue)} of {formatCurrency(sub.monthlyCost)} logged this month
+                          {formatCurrency(sub.totalValue)} of {formatCurrency(sub.costPerMonth)} logged this month
                         </div>
                       </div>
                     ) : sub.usesThisMonth > 0 ? (
@@ -271,7 +294,7 @@ export default function DashboardPage() {
                     return (
                       <tr key={sub.id}>
                         <td>{sub.name}</td>
-                        <td>{formatCurrency(sub.monthlyCost)}</td>
+                        <td>{formatCurrency(sub.costPerMonth)}</td>
                         <td>{sub.usesThisMonth}</td>
                         <td>{sub.hasValueData ? formatCurrency(sub.totalValue) : "—"}</td>
                         <td>
@@ -313,7 +336,7 @@ export default function DashboardPage() {
               />
             </div>
             <div className="field" style={{ flex: 1, minWidth: "120px" }}>
-              <label htmlFor="new-cost">Monthly cost</label>
+              <label htmlFor="new-cost">Cost</label>
               <input
                 id="new-cost"
                 className="input"
@@ -322,9 +345,32 @@ export default function DashboardPage() {
                 step="0.01"
                 placeholder="0.00"
                 required
-                value={monthlyCost}
-                onChange={(e) => setMonthlyCost(e.target.value)}
+                value={cost}
+                onChange={(e) => setCost(e.target.value)}
               />
+            </div>
+            <div className="field">
+              <label id="new-billing-period-label">Billing</label>
+              <div className="seg" role="radiogroup" aria-labelledby="new-billing-period-label">
+                <label className="seg-opt">
+                  <input
+                    type="radio"
+                    name="billingPeriod"
+                    checked={billingPeriod === "monthly"}
+                    onChange={() => setBillingPeriod("monthly")}
+                  />
+                  Monthly
+                </label>
+                <label className="seg-opt">
+                  <input
+                    type="radio"
+                    name="billingPeriod"
+                    checked={billingPeriod === "yearly"}
+                    onChange={() => setBillingPeriod("yearly")}
+                  />
+                  Yearly
+                </label>
+              </div>
             </div>
             <button type="submit" disabled={adding} className="btn btn-primary">
               Add
@@ -332,6 +378,47 @@ export default function DashboardPage() {
           </form>
         </section>
       </main>
+
+      {confirmDelete && (
+        <div
+          className="dialog-backdrop"
+          onClick={() => !deleting && setConfirmDelete(null)}
+          role="presentation"
+        >
+          <div
+            className="dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-dialog-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div id="delete-dialog-title" className="dialog-title">
+              Delete {confirmDelete.name}?
+            </div>
+            <div className="dialog-body">
+              This removes the subscription and all of its logged usage. This can&apos;t be undone.
+            </div>
+            <div className="dialog-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setConfirmDelete(null)}
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-danger"
+                onClick={handleConfirmDelete}
+                disabled={deleting}
+              >
+                {deleting ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

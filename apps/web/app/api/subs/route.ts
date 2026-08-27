@@ -3,6 +3,7 @@ import { and, eq, gte } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDb, subscriptions, usageEvents } from "@sub-tracker/db";
 import { getUserId } from "@/lib/auth-server";
+import { costPerMonth, isBillingPeriod } from "@/lib/billing";
 
 export async function GET(request: Request) {
   const userId = await getUserId(request);
@@ -25,13 +26,15 @@ export async function GET(request: Request) {
       const usesThisMonth = events.length;
       const totalValue = events.reduce((sum, event) => sum + (event.value ?? 0), 0);
       const hasValueData = events.some((event) => event.value != null);
+      const monthlyEquivalent = costPerMonth(sub.cost, sub.billingPeriod);
 
       return {
         ...sub,
         usesThisMonth,
         totalValue,
         hasValueData,
-        perUseCost: usesThisMonth > 0 ? sub.monthlyCost / usesThisMonth : null,
+        costPerMonth: monthlyEquivalent,
+        perUseCost: usesThisMonth > 0 ? monthlyEquivalent / usesThisMonth : null,
       };
     }),
   );
@@ -45,11 +48,18 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => null);
   const name = typeof body?.name === "string" ? body.name.trim() : "";
-  const monthlyCost = Number(body?.monthlyCost);
+  const cost = Number(body?.cost);
+  const billingPeriod = body?.billingPeriod === undefined ? "monthly" : body.billingPeriod;
 
-  if (!name || !Number.isFinite(monthlyCost) || monthlyCost < 0) {
+  if (!name || !Number.isFinite(cost) || cost < 0) {
     return NextResponse.json(
-      { error: "name and a non-negative monthlyCost are required" },
+      { error: "name and a non-negative cost are required" },
+      { status: 400 },
+    );
+  }
+  if (!isBillingPeriod(billingPeriod)) {
+    return NextResponse.json(
+      { error: "billingPeriod must be 'monthly' or 'yearly'" },
       { status: 400 },
     );
   }
@@ -59,7 +69,8 @@ export async function POST(request: Request) {
     id: randomUUID(),
     userId,
     name,
-    monthlyCost,
+    cost,
+    billingPeriod,
     createdAt: new Date(),
   };
   await db.insert(subscriptions).values(sub);

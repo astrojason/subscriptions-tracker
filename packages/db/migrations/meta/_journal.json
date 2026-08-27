@@ -8,6 +8,13 @@
       "when": 1787430839110,
       "tag": "0000_glorious_captain_britain",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1787842166537,
+      "tag": "0001_demonic_next_avengers",
+      "breakpoints": true
     }
   ]
 }
