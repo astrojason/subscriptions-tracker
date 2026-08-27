@@ -1,7 +1,9 @@
 "use client";
 
 import { signOut } from "firebase/auth";
+import { LogOut, Trash2 } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { ErrorBlock } from "@/components/ErrorBlock";
 import { apiFetch } from "@/lib/apiFetch";
 import { useAuth } from "@/lib/auth-context";
 import { auth } from "@/lib/firebase";
@@ -11,6 +13,17 @@ const BARELY_USED_THRESHOLD = 2;
 
 function formatCurrency(value: number) {
   return value.toLocaleString(undefined, { style: "currency", currency: "USD" });
+}
+
+function tagFor(sub: SubscriptionWithUsage) {
+  if (sub.hasValueData) {
+    const worthIt = sub.totalValue >= sub.monthlyCost;
+    return { label: worthIt ? "Worth it" : "Falling short", className: worthIt ? "tag-accent" : "tag-outline" };
+  }
+  if (sub.usesThisMonth < BARELY_USED_THRESHOLD) {
+    return { label: "Barely used", className: "tag-outline" };
+  }
+  return { label: "Tracking", className: "tag-neutral" };
 }
 
 export default function DashboardPage() {
@@ -23,8 +36,8 @@ export default function DashboardPage() {
   const [monthlyCost, setMonthlyCost] = useState("");
   const [adding, setAdding] = useState(false);
 
+  const [valueInputs, setValueInputs] = useState<Record<string, string>>({});
   const [loggingId, setLoggingId] = useState<string | null>(null);
-  const [logValue, setLogValue] = useState("");
 
   const loadSubs = useCallback(async () => {
     try {
@@ -79,210 +92,246 @@ export default function DashboardPage() {
 
   async function handleLogUse(id: string) {
     setError(null);
+    setLoggingId(id);
     try {
-      const trimmed = logValue.trim();
+      const raw = (valueInputs[id] ?? "").trim();
       await apiFetch(`/api/subs/${id}/log-use`, {
         method: "POST",
-        body: JSON.stringify({ value: trimmed ? Number(trimmed) : null }),
+        body: JSON.stringify({ value: raw ? Number(raw) : null }),
       });
-      setLoggingId(null);
-      setLogValue("");
+      setValueInputs((prev) => ({ ...prev, [id]: "" }));
       await loadSubs();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoggingId(null);
     }
   }
 
+  const monthLabel = new Date().toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
   if (authLoading || !user) {
     return (
-      <div className="flex flex-1 items-center justify-center bg-zinc-50 dark:bg-black">
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>
+      <div className="flex flex-1 items-center justify-center">
+        <p className="text-muted text-sm">Loading…</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-1 justify-center bg-zinc-50 px-4 py-10 dark:bg-black">
-      <div className="w-full max-w-3xl">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
-              Subscriptions
-            </h1>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">{user.email}</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => signOut(auth)}
-            className="text-sm font-medium text-zinc-500 underline dark:text-zinc-400"
-          >
-            Sign out
-          </button>
-        </div>
+    <div className="flex flex-1 flex-col">
+      <nav className="nav" style={{ padding: "0 var(--space-8)" }}>
+        <div className="nav-brand">Subscriptions</div>
+        <div className="text-muted text-sm">{user.email}</div>
+        <button type="button" onClick={() => signOut(auth)} className="btn btn-ghost">
+          <LogOut size={15} strokeWidth={1.5} />
+          Sign out
+        </button>
+      </nav>
 
-        <form
-          onSubmit={handleAdd}
-          className="mb-8 flex flex-wrap items-end gap-3 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950"
-        >
-          <div className="flex flex-1 min-w-[160px] flex-col gap-1">
-            <label className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Name</label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Netflix"
-              required
-              className="rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:text-zinc-50"
-            />
-          </div>
-          <div className="flex w-32 flex-col gap-1">
-            <label className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-              Monthly cost
-            </label>
-            <input
-              value={monthlyCost}
-              onChange={(e) => setMonthlyCost(e.target.value)}
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="15.99"
-              required
-              className="rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:text-zinc-50"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={adding}
-            className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900"
-          >
-            Add
-          </button>
-        </form>
-
+      <main
+        className="w-full flex-1"
+        style={{ maxWidth: "1040px", margin: "0 auto", padding: "var(--space-8) var(--space-6)" }}
+      >
         {error && (
-          <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-            {error}
-          </p>
+          <div style={{ marginBottom: "var(--space-6)" }}>
+            <ErrorBlock message={error} />
+          </div>
         )}
 
         {loading ? (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading subscriptions…</p>
+          <p className="text-muted text-sm">Loading subscriptions…</p>
         ) : subs.length === 0 ? (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            No subscriptions yet — add one above.
-          </p>
+          <div className="text-muted text-center text-sm" style={{ padding: "var(--space-8) 0" }}>
+            No subscriptions yet — add one below to start tracking.
+          </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {subs.map((sub) => {
-              const barelyUsed = !sub.hasValueData && sub.usesThisMonth < BARELY_USED_THRESHOLD;
-              const worthIt = sub.hasValueData && sub.totalValue >= sub.monthlyCost;
-              const progress = sub.hasValueData
-                ? Math.min(1, sub.totalValue / Math.max(sub.monthlyCost, 0.01))
-                : 0;
+          <>
+            <div
+              className="grid"
+              style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "var(--space-6)" }}
+            >
+              {subs.map((sub) => {
+                const tag = tagFor(sub);
+                const progressPct = sub.hasValueData
+                  ? Math.min(100, (sub.totalValue / Math.max(sub.monthlyCost, 0.01)) * 100)
+                  : 0;
+                const isLogging = loggingId === sub.id;
 
-              return (
-                <div
-                  key={sub.id}
-                  className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-                        {sub.name}
-                      </h2>
-                      <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                        {formatCurrency(sub.monthlyCost)}/mo
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(sub.id)}
-                      className="text-sm font-medium text-zinc-400 hover:text-red-500"
-                      aria-label={`Delete ${sub.name}`}
-                    >
-                      Delete
-                    </button>
-                  </div>
+                return (
+                  <div
+                    key={sub.id}
+                    className="card blueprint elev-sm"
+                    style={{ padding: "var(--space-6)", display: "flex", flexDirection: "column", gap: "var(--space-3)" }}
+                  >
+                    <i className="corner tl" />
+                    <i className="corner tr" />
+                    <i className="corner bl" />
+                    <i className="corner br" />
 
-                  {sub.hasValueData ? (
-                    <div className="flex flex-col gap-1">
-                      <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-                        <div
-                          className={`h-full rounded-full ${worthIt ? "bg-emerald-500" : "bg-amber-500"}`}
-                          style={{ width: `${progress * 100}%` }}
-                        />
+                    <div className="flex items-start justify-between" style={{ gap: "var(--space-2)" }}>
+                      <div>
+                        <div className="card-title" style={{ fontSize: "22px" }}>
+                          {sub.name}
+                        </div>
+                        <div className="card-meta">{formatCurrency(sub.monthlyCost)} / month</div>
                       </div>
-                      <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                        {formatCurrency(sub.totalValue)} of {formatCurrency(sub.monthlyCost)}{" "}
-                        logged this month
-                      </p>
-                      {worthIt && (
-                        <span className="w-fit rounded-full bg-emerald-100 px-2 py-0.5 text-sm font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                          Worth it
-                        </span>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(sub.id)}
+                        className="btn-icon"
+                        aria-label={`Delete ${sub.name}`}
+                        style={{ border: "1px solid var(--color-divider)" }}
+                      >
+                        <Trash2 size={15} strokeWidth={1.5} />
+                      </button>
                     </div>
-                  ) : (
-                    <div className="flex flex-col gap-1">
-                      <p className="text-sm text-zinc-700 dark:text-zinc-300">
-                        {sub.usesThisMonth} use{sub.usesThisMonth === 1 ? "" : "s"} this month
-                      </p>
-                      {sub.perUseCost != null && (
-                        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                          {formatCurrency(sub.perUseCost)}/use
-                        </p>
-                      )}
-                      {barelyUsed && (
-                        <span className="w-fit rounded-full bg-amber-100 px-2 py-0.5 text-sm font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
-                          Barely used
-                        </span>
-                      )}
-                    </div>
-                  )}
 
-                  {loggingId === sub.id ? (
-                    <div className="flex items-center gap-2">
+                    <div>
+                      <span className={`tag ${tag.className}`}>{tag.label}</span>
+                    </div>
+
+                    {sub.hasValueData ? (
+                      <div>
+                        <div
+                          style={{
+                            height: "6px",
+                            background: "var(--color-neutral-200)",
+                            borderRadius: "var(--radius-sm)",
+                            overflow: "hidden",
+                          }}
+                        >
+                          <div
+                            style={{ height: "100%", width: `${progressPct}%`, background: "var(--color-accent)" }}
+                          />
+                        </div>
+                        <div className="text-muted text-sm" style={{ marginTop: "var(--space-1)" }}>
+                          {formatCurrency(sub.totalValue)} of {formatCurrency(sub.monthlyCost)} logged this month
+                        </div>
+                      </div>
+                    ) : sub.usesThisMonth > 0 ? (
+                      <div className="text-muted text-sm">
+                        {sub.perUseCost != null && `${formatCurrency(sub.perUseCost)} / use · `}
+                        {sub.usesThisMonth} {sub.usesThisMonth === 1 ? "use" : "uses"} this month
+                      </div>
+                    ) : (
+                      <div className="text-muted text-sm">Not logged yet this month</div>
+                    )}
+
+                    <div
+                      className="flex"
+                      style={{
+                        gap: "var(--space-2)",
+                        marginTop: "auto",
+                        paddingTop: "var(--space-2)",
+                        borderTop: "1px solid var(--color-divider)",
+                      }}
+                    >
                       <input
-                        value={logValue}
-                        onChange={(e) => setLogValue(e.target.value)}
+                        className="input"
                         type="number"
                         min="0"
                         step="0.01"
-                        placeholder="Value (optional)"
-                        className="w-full rounded-lg border border-zinc-300 bg-transparent px-2 py-1.5 text-sm text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:text-zinc-50"
+                        placeholder="value (optional)"
+                        value={valueInputs[sub.id] ?? ""}
+                        onChange={(e) => setValueInputs((prev) => ({ ...prev, [sub.id]: e.target.value }))}
+                        style={{ flex: 1 }}
                       />
                       <button
                         type="button"
                         onClick={() => handleLogUse(sub.id)}
-                        className="shrink-0 rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white dark:bg-zinc-50 dark:text-zinc-900"
+                        disabled={isLogging}
+                        className="btn btn-secondary"
                       >
-                        Save
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setLoggingId(null);
-                          setLogValue("");
-                        }}
-                        className="shrink-0 text-sm font-medium text-zinc-400"
-                      >
-                        Cancel
+                        Log use
                       </button>
                     </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setLoggingId(sub.id)}
-                      className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:border-zinc-700 dark:text-zinc-200"
-                    >
-                      Log a use
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <section style={{ marginTop: "var(--space-8)" }}>
+              <h6 className="text-muted" style={{ marginBottom: "var(--space-3)" }}>
+                Usage report — {monthLabel}
+              </h6>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Subscription</th>
+                    <th>Monthly cost</th>
+                    <th>Uses</th>
+                    <th>Value logged</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {subs.map((sub) => {
+                    const tag = tagFor(sub);
+                    return (
+                      <tr key={sub.id}>
+                        <td>{sub.name}</td>
+                        <td>{formatCurrency(sub.monthlyCost)}</td>
+                        <td>{sub.usesThisMonth}</td>
+                        <td>{sub.hasValueData ? formatCurrency(sub.totalValue) : "—"}</td>
+                        <td>
+                          <span className={`tag ${tag.className}`}>{tag.label}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </section>
+          </>
         )}
-      </div>
+
+        <section
+          className="card blueprint elev-sm"
+          style={{ marginTop: "var(--space-8)", padding: "var(--space-6)" }}
+        >
+          <i className="corner tl" />
+          <i className="corner tr" />
+          <i className="corner bl" />
+          <i className="corner br" />
+          <div className="card-kicker">Add subscription</div>
+          <form
+            onSubmit={handleAdd}
+            className="flex flex-wrap items-end"
+            style={{ gap: "var(--space-4)", marginTop: "var(--space-3)" }}
+          >
+            <div className="field" style={{ flex: 2, minWidth: "180px" }}>
+              <label htmlFor="new-name">Name</label>
+              <input
+                id="new-name"
+                className="input"
+                type="text"
+                placeholder="e.g. Netflix"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+            <div className="field" style={{ flex: 1, minWidth: "120px" }}>
+              <label htmlFor="new-cost">Monthly cost</label>
+              <input
+                id="new-cost"
+                className="input"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+                required
+                value={monthlyCost}
+                onChange={(e) => setMonthlyCost(e.target.value)}
+              />
+            </div>
+            <button type="submit" disabled={adding} className="btn btn-primary">
+              Add
+            </button>
+          </form>
+        </section>
+      </main>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import {
 } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
+import { ErrorBlock } from "@/components/ErrorBlock";
 import { auth, googleProvider } from "@/lib/firebase";
 
 export default function LoginPage() {
@@ -49,40 +50,52 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center bg-zinc-50 px-4 dark:bg-black">
-      <div className="w-full max-w-sm rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-        <h1 className="mb-6 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
+    <div className="flex flex-1 items-center justify-center" style={{ padding: "var(--space-6)" }}>
+      <div
+        className="card blueprint elev-sm w-full max-w-sm"
+        style={{ padding: "var(--space-6)" }}
+      >
+        <i className="corner tl" />
+        <i className="corner tr" />
+        <i className="corner bl" />
+        <i className="corner br" />
+
+        <h1 style={{ marginBottom: "var(--space-6)" }}>
           {mode === "signin" ? "Sign in" : "Create account"}
         </h1>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <input
-            type="email"
-            required
-            autoComplete="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:text-zinc-50"
-          />
-          <input
-            type="password"
-            required
-            minLength={6}
-            autoComplete={mode === "signin" ? "current-password" : "new-password"}
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:text-zinc-50"
-          />
+        <form onSubmit={handleSubmit} className="flex flex-col" style={{ gap: "var(--space-4)" }}>
+          <div className="field">
+            <label htmlFor="email">Email</label>
+            <input
+              id="email"
+              className="input"
+              type="email"
+              required
+              autoComplete="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="password">Password</label>
+            <input
+              id="password"
+              className="input"
+              type="password"
+              required
+              minLength={6}
+              autoComplete={mode === "signin" ? "current-password" : "new-password"}
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
 
-          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+          {error && <ErrorBlock message={error} />}
 
-          <button
-            type="submit"
-            disabled={busy}
-            className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-opacity disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900"
-          >
+          <button type="submit" disabled={busy} className="btn btn-primary btn-block">
             {mode === "signin" ? "Sign in" : "Sign up"}
           </button>
         </form>
@@ -91,7 +104,7 @@ export default function LoginPage() {
           type="button"
           onClick={handleGoogle}
           disabled={busy}
-          className="mt-3 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition-opacity disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200"
+          className="btn btn-secondary btn-block"
         >
           Continue with Google
         </button>
@@ -99,7 +112,8 @@ export default function LoginPage() {
         <button
           type="button"
           onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-          className="mt-4 text-sm font-medium text-zinc-500 underline dark:text-zinc-400"
+          className="btn btn-ghost"
+          style={{ marginTop: "var(--space-4)" }}
         >
           {mode === "signin" ? "Need an account? Sign up" : "Have an account? Sign in"}
         </button>
