@@ -3,7 +3,7 @@ import { and, eq, gte } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDb, subscriptions, usageEvents } from "@/lib/db";
 import { getUserId } from "@/lib/auth-server";
-import { costPerMonth, isBillingPeriod } from "@/lib/billing";
+import { costPerMonth, isBillingPeriod, perUseCost, periodStart } from "@/lib/billing";
 
 export async function GET(request: Request) {
   const userId = await getUserId(request);
@@ -12,29 +12,34 @@ export async function GET(request: Request) {
   const db = getDb();
   const subs = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId));
 
-  const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
+  const startOfMonth = periodStart("monthly");
+  const startOfYear = periodStart("yearly");
 
   const withUsage = await Promise.all(
     subs.map(async (sub) => {
+      // Fetch since the start of the year so yearly plans can compute
+      // per-use cost over the same window their cost actually covers,
+      // not just the current calendar month.
       const events = await db
         .select()
         .from(usageEvents)
-        .where(and(eq(usageEvents.subscriptionId, sub.id), gte(usageEvents.usedAt, startOfMonth)));
+        .where(and(eq(usageEvents.subscriptionId, sub.id), gte(usageEvents.usedAt, startOfYear)));
 
-      const usesThisMonth = events.length;
-      const totalValue = events.reduce((sum, event) => sum + (event.value ?? 0), 0);
-      const hasValueData = events.some((event) => event.value != null);
+      const monthEvents = events.filter((event) => event.usedAt >= startOfMonth);
+      const usesThisMonth = monthEvents.length;
+      const usesInPeriod = sub.billingPeriod === "yearly" ? events.length : usesThisMonth;
+      const totalValue = monthEvents.reduce((sum, event) => sum + (event.value ?? 0), 0);
+      const hasValueData = monthEvents.some((event) => event.value != null);
       const monthlyEquivalent = costPerMonth(sub.cost, sub.billingPeriod);
 
       return {
         ...sub,
         usesThisMonth,
+        usesInPeriod,
         totalValue,
         hasValueData,
         costPerMonth: monthlyEquivalent,
-        perUseCost: usesThisMonth > 0 ? monthlyEquivalent / usesThisMonth : null,
+        perUseCost: perUseCost(sub.cost, usesInPeriod),
       };
     }),
   );

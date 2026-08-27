@@ -8,6 +8,8 @@ export type SubscriptionWithUsage = {
   billingPeriod: BillingPeriod;
   createdAt: string;
   usesThisMonth: number;
+  /** Uses within the current billing cycle: this month for monthly plans, this year for yearly plans. */
+  usesInPeriod: number;
   totalValue: number;
   hasValueData: boolean;
   perUseCost: number | null;

@@ -1,7 +1,7 @@
 "use client";
 
 import { signOut } from "firebase/auth";
-import { LogOut, Trash2 } from "lucide-react";
+import { LogOut, Pencil, Trash2 } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { ErrorBlock } from "@/components/ErrorBlock";
 import { apiFetch } from "@/lib/apiFetch";
@@ -38,10 +38,18 @@ export default function DashboardPage() {
   const [adding, setAdding] = useState(false);
 
   const [valueInputs, setValueInputs] = useState<Record<string, string>>({});
+  const [labelInputs, setLabelInputs] = useState<Record<string, string>>({});
+  const [dateInputs, setDateInputs] = useState<Record<string, string>>({});
   const [loggingId, setLoggingId] = useState<string | null>(null);
 
   const [confirmDelete, setConfirmDelete] = useState<SubscriptionWithUsage | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const [editingSub, setEditingSub] = useState<SubscriptionWithUsage | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editCost, setEditCost] = useState("");
+  const [editBillingPeriod, setEditBillingPeriod] = useState<BillingPeriod>("monthly");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const loadSubs = useCallback(async () => {
     try {
@@ -70,6 +78,15 @@ export default function DashboardPage() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [confirmDelete]);
+
+  useEffect(() => {
+    if (!editingSub) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setEditingSub(null);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [editingSub]);
 
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
@@ -114,17 +131,54 @@ export default function DashboardPage() {
     setError(null);
     setLoggingId(id);
     try {
-      const raw = (valueInputs[id] ?? "").trim();
+      const rawValue = (valueInputs[id] ?? "").trim();
+      const rawLabel = (labelInputs[id] ?? "").trim();
+      const rawDate = (dateInputs[id] ?? "").trim();
       await apiFetch(`/api/subs/${id}/log-use`, {
         method: "POST",
-        body: JSON.stringify({ value: raw ? Number(raw) : null }),
+        body: JSON.stringify({
+          value: rawValue ? Number(rawValue) : null,
+          label: rawLabel || null,
+          usedAt: rawDate || null,
+        }),
       });
       setValueInputs((prev) => ({ ...prev, [id]: "" }));
+      setLabelInputs((prev) => ({ ...prev, [id]: "" }));
+      setDateInputs((prev) => ({ ...prev, [id]: "" }));
       await loadSubs();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoggingId(null);
+    }
+  }
+
+  function handleOpenEdit(sub: SubscriptionWithUsage) {
+    setEditingSub(sub);
+    setEditName(sub.name);
+    setEditCost(String(sub.cost));
+    setEditBillingPeriod(sub.billingPeriod);
+  }
+
+  async function handleSaveEdit(e: FormEvent) {
+    e.preventDefault();
+    if (!editingSub) return;
+    const parsedCost = Number(editCost);
+    if (!editName.trim() || !Number.isFinite(parsedCost) || parsedCost < 0) return;
+
+    setSavingEdit(true);
+    setError(null);
+    try {
+      await apiFetch(`/api/subs/${editingSub.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name: editName.trim(), cost: parsedCost, billingPeriod: editBillingPeriod }),
+      });
+      setEditingSub(null);
+      await loadSubs();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -200,14 +254,24 @@ export default function DashboardPage() {
                           {isYearly && ` · ${formatCurrency(sub.costPerMonth)}/mo`}
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDelete(sub)}
-                        className="btn btn-icon btn-danger"
-                        aria-label={`Delete ${sub.name}`}
-                      >
-                        <Trash2 size={15} strokeWidth={1.5} />
-                      </button>
+                      <div className="flex" style={{ gap: "var(--space-2)" }}>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(sub)}
+                          className="btn btn-icon"
+                          aria-label={`Edit ${sub.name}`}
+                        >
+                          <Pencil size={15} strokeWidth={1.5} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDelete(sub)}
+                          className="btn btn-icon btn-danger"
+                          aria-label={`Delete ${sub.name}`}
+                        >
+                          <Trash2 size={15} strokeWidth={1.5} />
+                        </button>
+                      </div>
                     </div>
 
                     <div>
@@ -232,17 +296,17 @@ export default function DashboardPage() {
                           {formatCurrency(sub.totalValue)} of {formatCurrency(sub.costPerMonth)} logged this month
                         </div>
                       </div>
-                    ) : sub.usesThisMonth > 0 ? (
+                    ) : sub.usesInPeriod > 0 ? (
                       <div className="text-muted text-sm">
                         {sub.perUseCost != null && `${formatCurrency(sub.perUseCost)} / use · `}
-                        {sub.usesThisMonth} {sub.usesThisMonth === 1 ? "use" : "uses"} this month
+                        {sub.usesInPeriod} {sub.usesInPeriod === 1 ? "use" : "uses"} this {isYearly ? "year" : "month"}
                       </div>
                     ) : (
-                      <div className="text-muted text-sm">Not logged yet this month</div>
+                      <div className="text-muted text-sm">Not logged yet this {isYearly ? "year" : "month"}</div>
                     )}
 
                     <div
-                      className="flex"
+                      className="flex flex-wrap"
                       style={{
                         gap: "var(--space-2)",
                         marginTop: "auto",
@@ -252,13 +316,30 @@ export default function DashboardPage() {
                     >
                       <input
                         className="input"
+                        type="text"
+                        placeholder="name (optional)"
+                        value={labelInputs[sub.id] ?? ""}
+                        onChange={(e) => setLabelInputs((prev) => ({ ...prev, [sub.id]: e.target.value }))}
+                        style={{ flex: 2, minWidth: "110px" }}
+                      />
+                      <input
+                        className="input"
                         type="number"
                         min="0"
                         step="0.01"
                         placeholder="value (optional)"
                         value={valueInputs[sub.id] ?? ""}
                         onChange={(e) => setValueInputs((prev) => ({ ...prev, [sub.id]: e.target.value }))}
-                        style={{ flex: 1 }}
+                        style={{ flex: 1, minWidth: "90px" }}
+                      />
+                      <input
+                        className="input"
+                        type="date"
+                        aria-label="Date used (optional, defaults to today)"
+                        max={new Date().toISOString().slice(0, 10)}
+                        value={dateInputs[sub.id] ?? ""}
+                        onChange={(e) => setDateInputs((prev) => ({ ...prev, [sub.id]: e.target.value }))}
+                        style={{ flex: 1, minWidth: "130px" }}
                       />
                       <button
                         type="button"
@@ -416,6 +497,88 @@ export default function DashboardPage() {
                 {deleting ? "Deleting…" : "Delete"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {editingSub && (
+        <div
+          className="dialog-backdrop"
+          onClick={() => !savingEdit && setEditingSub(null)}
+          role="presentation"
+        >
+          <div
+            className="dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-dialog-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div id="edit-dialog-title" className="dialog-title">
+              Edit {editingSub.name}
+            </div>
+            <form onSubmit={handleSaveEdit} className="flex flex-col" style={{ gap: "var(--space-4)", marginTop: "var(--space-3)" }}>
+              <div className="field">
+                <label htmlFor="edit-name">Name</label>
+                <input
+                  id="edit-name"
+                  className="input"
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="edit-cost">Cost</label>
+                <input
+                  id="edit-cost"
+                  className="input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  required
+                  value={editCost}
+                  onChange={(e) => setEditCost(e.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label id="edit-billing-period-label">Billing</label>
+                <div className="seg" role="radiogroup" aria-labelledby="edit-billing-period-label">
+                  <label className="seg-opt">
+                    <input
+                      type="radio"
+                      name="editBillingPeriod"
+                      checked={editBillingPeriod === "monthly"}
+                      onChange={() => setEditBillingPeriod("monthly")}
+                    />
+                    Monthly
+                  </label>
+                  <label className="seg-opt">
+                    <input
+                      type="radio"
+                      name="editBillingPeriod"
+                      checked={editBillingPeriod === "yearly"}
+                      onChange={() => setEditBillingPeriod("yearly")}
+                    />
+                    Yearly
+                  </label>
+                </div>
+              </div>
+              <div className="dialog-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setEditingSub(null)}
+                  disabled={savingEdit}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={savingEdit}>
+                  {savingEdit ? "Saving…" : "Save"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

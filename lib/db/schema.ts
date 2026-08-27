@@ -26,6 +26,7 @@ export const usageEvents = sqliteTable(
       .references(() => subscriptions.id, { onDelete: "cascade" }),
     usedAt: integer("used_at", { mode: "timestamp" }).notNull(),
     value: real("value"),
+    label: text("label"),
   },
   (table) => ({
     subscriptionUsedAtIdx: index("usage_events_subscription_id_used_at_idx").on(

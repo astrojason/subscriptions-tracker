@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDb, subscriptions, usageEvents } from "@/lib/db";
 import { getUserId } from "@/lib/auth-server";
+import { parseLogUseInput } from "@/lib/usage";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -22,16 +23,18 @@ export async function POST(request: Request, { params }: Context) {
 
   const body = await request.json().catch(() => ({}));
 
-  let value: number | null = null;
-  if (body?.value !== undefined && body.value !== null && body.value !== "") {
-    const parsed = Number(body.value);
-    if (!Number.isFinite(parsed) || parsed < 0) {
-      return NextResponse.json({ error: "value must be a non-negative number" }, { status: 400 });
-    }
-    value = parsed;
+  const parsed = parseLogUseInput(body);
+  if (!parsed.ok) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  const event = { id: randomUUID(), subscriptionId: id, usedAt: new Date(), value };
+  const event = {
+    id: randomUUID(),
+    subscriptionId: id,
+    usedAt: parsed.usedAt,
+    value: parsed.value,
+    label: parsed.label,
+  };
   await db.insert(usageEvents).values(event);
 
   return NextResponse.json(event, { status: 201 });
