@@ -7,15 +7,14 @@ See `PLAN.md` for the original design doc.
 
 ## Stack
 
-- Turborepo + npm workspaces
-- Next.js (App Router) in `apps/web`
-- Turso (SQLite) + Drizzle ORM in `packages/db`
+- Next.js (App Router)
+- Turso (SQLite) + Drizzle ORM in `lib/db`
 - Firebase Auth (Google sign-in)
 - Deployed on Vercel
 
 ## Setup
 
-1. Install dependencies from the repo root:
+1. Install dependencies:
 
    ```bash
    npm install
@@ -32,8 +31,7 @@ See `PLAN.md` for the original design doc.
 3. Create a Firebase project, enable the Google sign-in provider, and generate a service
    account key for `firebase-admin`.
 
-4. Copy `apps/web/.env.example` to `apps/web/.env.local` and fill in the Turso and Firebase
-   values.
+4. Copy `.env.example` to `.env.local` and fill in the Turso and Firebase values.
 
 5. Create the tables in Turso. Either push the schema directly:
 
@@ -44,12 +42,11 @@ See `PLAN.md` for the original design doc.
    or run the SQL migration yourself against the database:
 
    ```bash
-   turso db shell sub-tracker < packages/db/migrations/0000_glorious_captain_britain.sql
+   turso db shell sub-tracker < lib/db/migrations/0000_glorious_captain_britain.sql
    ```
 
    The raw SQL (two tables, `subscriptions` and `usage_events`, plus their indexes) is checked
-   into `packages/db/migrations/`. Regenerate it after schema changes with
-   `npm run db:generate --workspace=@sub-tracker/db`.
+   into `lib/db/migrations/`. Regenerate it after schema changes with `npm run db:generate`.
 
 6. Start the dev server:
 
@@ -59,6 +56,6 @@ See `PLAN.md` for the original design doc.
 
 ## Deployment
 
-Import the repo into Vercel and set the variables from `apps/web/.env.example` in the project's
-environment settings. The root `vercel.json` runs `turbo run build --filter=web`, so the Vercel
-project's Root Directory should stay at the repo root (not `apps/web`).
+Import the repo into Vercel and set the variables from `.env.example` in the project's
+environment settings. This is a plain Next.js app at the repo root — no `vercel.json` or custom
+Root Directory setting is needed.

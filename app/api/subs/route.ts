@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, gte } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { getDb, subscriptions, usageEvents } from "@sub-tracker/db";
+import { getDb, subscriptions, usageEvents } from "@/lib/db";
 import { getUserId } from "@/lib/auth-server";
 import { costPerMonth, isBillingPeriod } from "@/lib/billing";
 

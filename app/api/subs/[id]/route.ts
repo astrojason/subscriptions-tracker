@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { getDb, subscriptions, usageEvents } from "@sub-tracker/db";
+import { getDb, subscriptions, usageEvents } from "@/lib/db";
 import { isBillingPeriod } from "@/lib/billing";
 import { getUserId } from "@/lib/auth-server";
 import type { BillingPeriod } from "@/lib/types";

@@ -6,17 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Database schema changes
 
-The database is Turso (SQLite) via Drizzle ORM (`packages/db/schema.ts`). Never push or apply
+The database is Turso (SQLite) via Drizzle ORM (`lib/db/schema.ts`). Never push or apply
 schema changes directly against the live database (no `drizzle-kit push`, no live migration
 runs on the user's behalf).
 
 Instead:
 
-1. Update `packages/db/schema.ts` to match the desired schema.
-2. Run `npm run db:generate --workspace=@sub-tracker/db` to produce a SQL migration file under
-   `packages/db/migrations/`.
+1. Update `lib/db/schema.ts` to match the desired schema.
+2. Run `npm run db:generate` to produce a SQL migration file under `lib/db/migrations/`.
 3. Tell the user the migration file exists and that they need to run it manually against Turso
-   (e.g. `turso db shell <db-name> < packages/db/migrations/<file>.sql`) — do not run it for them.
+   (e.g. `turso db shell <db-name> < lib/db/migrations/<file>.sql`) — do not run it for them.
 
 ## Test-driven workflow
 
@@ -51,3 +50,13 @@ Keep `TODO.md` up to date:
 The app version lives in `package.json` and is displayed in the footer. A pre-commit hook should prompt interactively for a major/minor/patch bump on every commit; it should no-op when stdin isn't a TTY (e.g. commits made by Claude), so **when committing on the user's behalf, suggest which bump type (major/minor/patch) the change warrants** so the user can apply it manually if the hook doesn't catch it.
 
 Every commit that changes actual code must bump the version (in `package.json` and `package-lock.json`). Commits that touch only `CLAUDE.md` are excluded.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
