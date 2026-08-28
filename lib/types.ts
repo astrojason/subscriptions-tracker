@@ -16,3 +16,11 @@ export type SubscriptionWithUsage = {
   /** `cost` normalized to a monthly figure, for cross-period comparisons. */
   costPerMonth: number;
 };
+
+export type UsageEventDTO = {
+  id: string;
+  subscriptionId: string;
+  usedAt: string;
+  value: number | null;
+  label: string | null;
+};
