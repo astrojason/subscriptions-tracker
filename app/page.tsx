@@ -358,7 +358,7 @@ export default function DashboardPage() {
                     <th>Uses</th>
                     <th>Value logged</th>
                     <th>Status</th>
-                    <th>Actions</th>
+                    <th style={{ width: "1%", textAlign: "right" }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -382,8 +382,8 @@ export default function DashboardPage() {
                         <td>
                           <span className={`tag ${tag.className}`}>{tag.label}</span>
                         </td>
-                        <td>
-                          <div className="flex" style={{ gap: "var(--space-2)" }}>
+                        <td style={{ whiteSpace: "nowrap" }}>
+                          <div className="flex justify-end" style={{ gap: "var(--space-2)" }}>
                             <button
                               type="button"
                               onClick={() => handleOpenLogUse(sub)}
