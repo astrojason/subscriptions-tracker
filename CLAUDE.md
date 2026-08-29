@@ -51,6 +51,8 @@ The app version lives in `package.json` and is displayed in the footer. A pre-co
 
 Every commit that changes actual code must bump the version (in `package.json` and `package-lock.json`). Commits that touch only `CLAUDE.md` are excluded.
 
+The version in the footer must be a clickable link to `/changelog`. The changelog page renders the git log — each entry shows the short hash and commit message (`git log --pretty=format:"%h|%s|%ad" --date=short -n 50`), served from a Next.js API route at `/api/changelog`.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

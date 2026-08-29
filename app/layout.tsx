@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Barlow, Barlow_Condensed } from "next/font/google";
+import Link from "next/link";
 import { AuthProvider } from "@/lib/auth-context";
 import webPackageJson from "../package.json";
 import "./globals.css";
@@ -42,7 +43,17 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           className="text-center text-xs"
           style={{ padding: "var(--space-4)", color: "color-mix(in srgb, var(--color-text) 50%, transparent)" }}
         >
-          Subscription Tracker v{webPackageJson.version}
+          Subscription Tracker{" "}
+          <Link
+            href="/changelog"
+            style={{
+              color: "inherit",
+              textDecoration: "underline",
+              textDecorationColor: "color-mix(in srgb, currentColor 40%, transparent)",
+            }}
+          >
+            v{webPackageJson.version}
+          </Link>
         </footer>
       </body>
     </html>
