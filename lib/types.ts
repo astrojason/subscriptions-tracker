@@ -8,6 +8,8 @@ export type SubscriptionWithUsage = {
   billingPeriod: BillingPeriod;
   createdAt: string;
   usesThisMonth: number;
+  /** Uses within the same trailing window "worth it" judges against (see worthItWindowStart), used for the "barely used" fallback so it doesn't reset every calendar month. */
+  usesInWindow: number;
   /** Uses within the current billing cycle: this month for monthly plans, this year for yearly plans. */
   usesInPeriod: number;
   totalValue: number;

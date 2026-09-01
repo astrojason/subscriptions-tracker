@@ -11,6 +11,7 @@ import {
   isWorthIt,
   perUseCost,
   periodStart,
+  usesInWorthItWindow,
   worthItWindowStart,
 } from "@/lib/billing";
 
@@ -54,6 +55,7 @@ export async function GET(request: Request) {
       return {
         ...sub,
         usesThisMonth,
+        usesInWindow: usesInWorthItWindow(events, sub.billingPeriod),
         usesInPeriod,
         totalValue,
         hasValueData,

@@ -40,7 +40,7 @@ function tagFor(sub: SubscriptionWithUsage) {
       className: sub.worthIt ? "tag-accent" : "tag-outline",
     };
   }
-  if (sub.usesThisMonth < BARELY_USED_THRESHOLD) {
+  if (sub.usesInWindow < BARELY_USED_THRESHOLD) {
     return { label: "Barely used", className: "tag-outline" };
   }
   return { label: "Tracking", className: "tag-neutral" };

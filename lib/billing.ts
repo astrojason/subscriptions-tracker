@@ -62,6 +62,19 @@ export function eventsSince<T extends { usedAt: Date }>(events: T[], windowStart
   return events.filter((event) => event.usedAt >= windowStart);
 }
 
+/**
+ * Use count over the same trailing window "worth it" judges against, rather
+ * than the raw calendar month. Used for the "barely used" fallback so it
+ * doesn't reset to 0 the instant a new calendar month starts.
+ */
+export function usesInWorthItWindow<T extends { usedAt: Date }>(
+  events: T[],
+  billingPeriod: BillingPeriod,
+  now: Date = new Date(),
+): number {
+  return eventsSince(events, worthItWindowStart(billingPeriod, now)).length;
+}
+
 /** The cost "worth it" compares logged value against, scaled to match worthItWindowStart's window. */
 export function costForWorthItWindow(cost: number, billingPeriod: BillingPeriod): number {
   return billingPeriod === "yearly" ? cost : cost * WORTH_IT_ROLLING_MONTHS;

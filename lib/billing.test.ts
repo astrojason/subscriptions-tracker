@@ -7,6 +7,7 @@ import {
   perUseCost,
   periodStart,
   rollingWindowStart,
+  usesInWorthItWindow,
   worthItWindowStart,
 } from "@/lib/billing";
 
@@ -103,6 +104,31 @@ describe("isWorthIt", () => {
   it("falls short once the rolling window's usage has actually dropped off", () => {
     // Same plan, but only $10 logged across the whole 3-month window.
     expect(isWorthIt(costForWorthItWindow(20, "monthly"), 10)).toBe(false);
+  });
+});
+
+describe("usesInWorthItWindow", () => {
+  it("still counts last month's uses on the 1st of a new month (monthly plan)", () => {
+    // Heavy use in August shouldn't vanish the instant September starts —
+    // the "worth it" window is a 3-month trailing window, not the
+    // current calendar month.
+    const now = new Date(2026, 8, 1); // Sep 1 2026
+    const augustEvents = Array.from({ length: 20 }, (_, i) => ({
+      usedAt: new Date(2026, 7, i + 1),
+    }));
+    expect(usesInWorthItWindow(augustEvents, "monthly", now)).toBe(20);
+  });
+
+  it("excludes uses from outside the trailing window", () => {
+    const now = new Date(2026, 8, 1); // Sep 1 2026
+    const tooOld = [{ usedAt: new Date(2026, 4, 15) }]; // May 2026, outside Jun 1-Sep 1 window
+    expect(usesInWorthItWindow(tooOld, "monthly", now)).toBe(0);
+  });
+
+  it("uses year-to-date for yearly plans", () => {
+    const now = new Date(2026, 8, 1); // Sep 1 2026
+    const events = [{ usedAt: new Date(2026, 1, 10) }, { usedAt: new Date(2025, 11, 20) }];
+    expect(usesInWorthItWindow(events, "yearly", now)).toBe(1);
   });
 });
 
