@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { verifyIdToken } from "@/lib/firebase-admin";
+import { verifySessionCookie } from "@/lib/firebase-admin";
 
 const PUBLIC_PATHS = new Set(["/login"]);
 
@@ -9,7 +9,7 @@ export async function proxy(request: NextRequest) {
   const isPublicPath = PUBLIC_PATHS.has(pathname);
 
   const sessionToken = request.cookies.get("session")?.value;
-  const isAuthenticated = sessionToken ? await verifyIdToken(sessionToken).then(
+  const isAuthenticated = sessionToken ? await verifySessionCookie(sessionToken).then(
     () => true,
     () => false,
   ) : false;

@@ -31,3 +31,42 @@ export function periodStart(billingPeriod: BillingPeriod, now: Date = new Date()
 export function perUseCost(cost: number, usesInPeriod: number): number | null {
   return usesInPeriod > 0 ? cost / usesInPeriod : null;
 }
+
+export const WORTH_IT_ROLLING_MONTHS = 3;
+
+/**
+ * Start of the trailing window "worth it" judges monthly plans against: the
+ * 1st of the month (WORTH_IT_ROLLING_MONTHS - 1) months back, so this month
+ * plus the two before it. A strong recent month keeps a plan looking worth
+ * it through one slow month, while a sustained drop-off in usage still
+ * surfaces once it's dragged the whole window down.
+ */
+export function rollingWindowStart(now: Date = new Date()): Date {
+  const start = new Date(now);
+  start.setMonth(start.getMonth() - (WORTH_IT_ROLLING_MONTHS - 1), 1);
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+/**
+ * Window "worth it" should judge logged value against: the rolling window
+ * for monthly plans, year-to-date for yearly plans (matching perUseCost's
+ * window, so a yearly plan isn't judged by a single slow month against a
+ * whole year's cost).
+ */
+export function worthItWindowStart(billingPeriod: BillingPeriod, now: Date = new Date()): Date {
+  return billingPeriod === "yearly" ? periodStart("yearly", now) : rollingWindowStart(now);
+}
+
+export function eventsSince<T extends { usedAt: Date }>(events: T[], windowStart: Date): T[] {
+  return events.filter((event) => event.usedAt >= windowStart);
+}
+
+/** The cost "worth it" compares logged value against, scaled to match worthItWindowStart's window. */
+export function costForWorthItWindow(cost: number, billingPeriod: BillingPeriod): number {
+  return billingPeriod === "yearly" ? cost : cost * WORTH_IT_ROLLING_MONTHS;
+}
+
+export function isWorthIt(costForWindow: number, valueInWindow: number): boolean {
+  return valueInWindow >= costForWindow;
+}

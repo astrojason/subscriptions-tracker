@@ -4,6 +4,7 @@ import { signInWithPopup } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ErrorBlock } from "@/components/ErrorBlock";
+import { syncSessionCookie } from "@/lib/auth-context";
 import { auth, googleProvider } from "@/lib/firebase";
 
 export default function LoginPage() {
@@ -15,7 +16,11 @@ export default function LoginPage() {
     setError(null);
     setBusy(true);
     try {
-      await signInWithPopup(auth, googleProvider);
+      const { user } = await signInWithPopup(auth, googleProvider);
+      // Mint the server session cookie before navigating so proxy.ts sees
+      // an authenticated request on the very next page load, rather than
+      // racing the AuthProvider's onIdTokenChanged listener.
+      await syncSessionCookie(user);
       router.push("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

@@ -2,9 +2,8 @@
 
 import { type User, onIdTokenChanged } from "firebase/auth";
 import { type ReactNode, createContext, useContext, useEffect, useState } from "react";
+import { ErrorBlock } from "@/components/ErrorBlock";
 import { auth } from "./firebase";
-
-const SESSION_COOKIE = "session";
 
 type AuthContextValue = {
   user: User | null;
@@ -13,27 +12,61 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue>({ user: null, loading: true });
 
-function setSessionCookie(token: string | null) {
-  if (token) {
-    document.cookie = `${SESSION_COOKIE}=${token}; path=/; max-age=3600; SameSite=Lax`;
+/**
+ * Mints (or clears) the server-side session cookie used to gate page
+ * requests in proxy.ts. Exported so callers that need the cookie in place
+ * before navigating (e.g. the login page, before router.push) can await it
+ * directly instead of racing the onIdTokenChanged listener below.
+ */
+export async function syncSessionCookie(user: User | null) {
+  if (user) {
+    const idToken = await user.getIdToken();
+    const res = await fetch("/api/auth/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken }),
+    });
+    if (!res.ok) {
+      const message = await res.text().catch(() => res.statusText);
+      throw new Error(message || `Failed to start session (status ${res.status})`);
+    }
   } else {
-    document.cookie = `${SESSION_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
+    const res = await fetch("/api/auth/session", { method: "DELETE" });
+    if (!res.ok) {
+      const message = await res.text().catch(() => res.statusText);
+      throw new Error(message || `Failed to end session (status ${res.status})`);
+    }
   }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionError, setSessionError] = useState<string | null>(null);
 
   useEffect(() => {
     return onIdTokenChanged(auth, async (nextUser) => {
       setUser(nextUser);
       setLoading(false);
-      setSessionCookie(nextUser ? await nextUser.getIdToken() : null);
+      try {
+        await syncSessionCookie(nextUser);
+        setSessionError(null);
+      } catch (err) {
+        setSessionError(err instanceof Error ? err.message : String(err));
+      }
     });
   }, []);
 
-  return <AuthContext.Provider value={{ user, loading }}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, loading }}>
+      {sessionError && (
+        <div style={{ padding: "var(--space-4)" }}>
+          <ErrorBlock message={sessionError} />
+        </div>
+      )}
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {

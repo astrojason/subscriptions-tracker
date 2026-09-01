@@ -3,7 +3,16 @@ import { and, eq, gte } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDb, subscriptions, usageEvents } from "@/lib/db";
 import { getUserId } from "@/lib/auth-server";
-import { costPerMonth, isBillingPeriod, perUseCost, periodStart } from "@/lib/billing";
+import {
+  costForWorthItWindow,
+  costPerMonth,
+  eventsSince,
+  isBillingPeriod,
+  isWorthIt,
+  perUseCost,
+  periodStart,
+  worthItWindowStart,
+} from "@/lib/billing";
 
 export async function GET(request: Request) {
   const userId = await getUserId(request);
@@ -17,20 +26,30 @@ export async function GET(request: Request) {
 
   const withUsage = await Promise.all(
     subs.map(async (sub) => {
-      // Fetch since the start of the year so yearly plans can compute
-      // per-use cost over the same window their cost actually covers,
-      // not just the current calendar month.
+      // Fetch since whichever window starts earlier: the year (for yearly
+      // plans' per-use cost) or the rolling "worth it" window (for monthly
+      // plans, which can dip into the previous year in Jan/Feb).
+      const windowStart = worthItWindowStart(sub.billingPeriod);
+      const fetchFloor = windowStart < startOfYear ? windowStart : startOfYear;
       const events = await db
         .select()
         .from(usageEvents)
-        .where(and(eq(usageEvents.subscriptionId, sub.id), gte(usageEvents.usedAt, startOfYear)));
+        .where(and(eq(usageEvents.subscriptionId, sub.id), gte(usageEvents.usedAt, fetchFloor)));
 
-      const monthEvents = events.filter((event) => event.usedAt >= startOfMonth);
+      const monthEvents = eventsSince(events, startOfMonth);
       const usesThisMonth = monthEvents.length;
-      const usesInPeriod = sub.billingPeriod === "yearly" ? events.length : usesThisMonth;
+      const usesInPeriod =
+        sub.billingPeriod === "yearly" ? eventsSince(events, startOfYear).length : usesThisMonth;
       const totalValue = monthEvents.reduce((sum, event) => sum + (event.value ?? 0), 0);
       const hasValueData = monthEvents.some((event) => event.value != null);
       const monthlyEquivalent = costPerMonth(sub.cost, sub.billingPeriod);
+
+      // "Worth it" compares logged value against a rolling multi-month
+      // window for monthly plans (so one slow month doesn't sink a plan
+      // used well recently) and year-to-date for yearly plans.
+      const windowEvents = eventsSince(events, windowStart);
+      const windowTotalValue = windowEvents.reduce((sum, event) => sum + (event.value ?? 0), 0);
+      const windowHasValueData = windowEvents.some((event) => event.value != null);
 
       return {
         ...sub,
@@ -40,6 +59,9 @@ export async function GET(request: Request) {
         hasValueData,
         costPerMonth: monthlyEquivalent,
         perUseCost: perUseCost(sub.cost, usesInPeriod),
+        worthIt: windowHasValueData
+          ? isWorthIt(costForWorthItWindow(sub.cost, sub.billingPeriod), windowTotalValue)
+          : null,
       };
     }),
   );

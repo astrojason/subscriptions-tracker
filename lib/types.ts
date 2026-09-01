@@ -15,6 +15,8 @@ export type SubscriptionWithUsage = {
   perUseCost: number | null;
   /** `cost` normalized to a monthly figure, for cross-period comparisons. */
   costPerMonth: number;
+  /** Whether logged value meets cost over the billing period (year for yearly plans), or null if no value has been logged in that period. */
+  worthIt: boolean | null;
 };
 
 export type UsageEventDTO = {

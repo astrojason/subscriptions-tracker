@@ -27,3 +27,11 @@ function getAdminApp(): App {
 export async function verifyIdToken(token: string) {
   return getAuth(getAdminApp()).verifyIdToken(token);
 }
+
+export async function createSessionCookie(idToken: string, expiresInMs: number) {
+  return getAuth(getAdminApp()).createSessionCookie(idToken, { expiresIn: expiresInMs });
+}
+
+export async function verifySessionCookie(cookie: string) {
+  return getAuth(getAdminApp()).verifySessionCookie(cookie, true);
+}

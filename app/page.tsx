@@ -34,9 +34,11 @@ function draftsFromEvents(events: UsageEventDTO[]) {
 }
 
 function tagFor(sub: SubscriptionWithUsage) {
-  if (sub.hasValueData) {
-    const worthIt = sub.totalValue >= sub.costPerMonth;
-    return { label: worthIt ? "Worth it" : "Falling short", className: worthIt ? "tag-accent" : "tag-outline" };
+  if (sub.worthIt != null) {
+    return {
+      label: sub.worthIt ? "Worth it" : "Falling short",
+      className: sub.worthIt ? "tag-accent" : "tag-outline",
+    };
   }
   if (sub.usesThisMonth < BARELY_USED_THRESHOLD) {
     return { label: "Barely used", className: "tag-outline" };
